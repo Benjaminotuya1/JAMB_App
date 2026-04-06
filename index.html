@@ -141,8 +141,22 @@
 
     <div id="result-screen">
         <h2>Exam Completed</h2>
-        <p style="font-size: 18px; color: #333;">Your exam has been submitted securely.</p>
-        <p id="sync-status" style="font-size: 14px; color: #006400; font-weight: bold;">Syncing to server...</p>
+        <div id="score-summary" style="margin: 20px auto; padding: 20px; max-width: 450px; border: 1px solid #006400; border-radius: 10px; background: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: left;">
+            <h3 style="color: #006400; margin-top: 0; text-align: center; border-bottom: 2px solid #006400; padding-bottom: 10px;">Official Score Report</h3>
+            
+            <div id="subject-details" style="margin: 15px 0;">
+                </div>
+            
+            <div style="background: #006400; color: white; padding: 15px; border-radius: 5px; text-align: center;">
+                <p style="margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Aggregate Score</p>
+                <p style="margin: 5px 0 0 0; font-size: 32px; font-weight: bold;"><span id="final-aggregate">0</span> / 400</p>
+            </div>
+        </div>
+        
+        <p style="font-size: 16px; color: #555;">Your response has been securely uploaded to the server.</p>
+        <p id="sync-status" style="font-size: 14px; color: #006400; font-weight: bold;">Syncing with master database...</p>
+        
+        <button class="btn-main" onclick="window.location.reload()" style="max-width: 200px; margin-top: 20px;">BACK TO HOME</button>
     </div>
     <script src="questions.js"></script>
     <script>
@@ -345,38 +359,54 @@ let userSubjects = ['Use of English'];
 
        function submitExam() {
             clearInterval(timerInterval);
-            let subjectBreakdown = {}; // To store scores like { "English": 50, "Math": 35 }
+            let subjectBreakdown = {};
             let totalScore = 0;
+            let detailsHtml = ""; // To build the subject list display
+            
             const reg = regInput.value.trim().toUpperCase();
             const fullName = nameInput.value.trim();
             
             userSubjects.forEach(sub => {
                 let subScore = 0;
+                let totalQs = sessionExam[sub].length;
+
+                // Calculate correct answers for this subject
                 answers[sub].forEach((ans, idx) => {
                     if(sessionExam[sub] && sessionExam[sub][idx] && ans === sessionExam[sub][idx].answer) {
                         subScore++;
                     }
                 });
                 
-                // Weighting the score to 100 per subject (Standard JAMB style)
-                let totalQs = sessionExam[sub].length;
+                // Weight it to 100 points (JAMB standard)
                 let weightedScore = Math.round((subScore / totalQs) * 100);
                 
                 subjectBreakdown[sub] = weightedScore;
-                totalScore += weightedScore; // Aggregate total out of 400
+                totalScore += weightedScore;
+
+                // Add to the visual report
+                detailsHtml += `
+                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #ccc;">
+                        <span style="font-weight: bold;">${sub}</span>
+                        <span style="color: #006400; font-weight: bold;">${weightedScore} / 100</span>
+                    </div>`;
             });
 
+            // Update the screen with the data
+            document.getElementById("subject-details").innerHTML = detailsHtml;
+            document.getElementById("final-aggregate").innerText = totalScore;
+
+            // Save status and switch screens
             localStorage.setItem('jamb_exam_done_' + reg, true);
             document.getElementById("exam-screen").style.display = "none";
             document.getElementById("result-screen").style.display = "block";
 
-            // We are now sending a much richer payload for your Result Checker
+            // Send full breakdown to Google Sheets
             let payload = {
                 regNum: reg,
                 fullName: fullName,
                 subjects: userSubjects.join(", "),
-                breakdown: JSON.stringify(subjectBreakdown), // Detailed scores
-                totalScore: totalScore // Total out of 400
+                breakdown: JSON.stringify(subjectBreakdown),
+                score: totalScore
             };
 
             fetch(GOOGLE_APP_URL, {
@@ -385,9 +415,9 @@ let userSubjects = ['Use of English'];
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             }).then(() => {
-                document.getElementById("sync-status").innerText = "Result saved to master database.";
+                document.getElementById("sync-status").innerText = "Success: Result synced to server.";
             }).catch(error => {
-                document.getElementById("sync-status").innerText = "Network error. Saved to device.";
+                document.getElementById("sync-status").innerText = "Saved offline. Please notify the admin.";
             });
         }
     </script>
