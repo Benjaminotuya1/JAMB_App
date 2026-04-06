@@ -420,6 +420,32 @@ let userSubjects = ['Use of English'];
                 document.getElementById("sync-status").innerText = "Saved offline. Please notify the admin.";
             });
         }
+        // --- NEW: Function to save the entire state to LocalStorage ---
+        function persistState() {
+            const state = {
+                fullName: nameInput.value.trim(),
+                regNum: regInput.value.trim().toUpperCase(),
+                userSubjects: userSubjects,
+                currentSubject: currentSubject,
+                currentIndex: currentIndex,
+                answers: answers,
+                sessionExam: sessionExam,
+                timeLeft: timeLeft,
+                examActive: true
+            };
+            localStorage.setItem('jamb_current_session', JSON.stringify(state));
+        }
+
+// Update your saveAnswer to trigger a save
+        function saveAnswer(idx) { 
+            answers[currentSubject][currentIndex] = idx; 
+            renderGrid(); 
+            persistState(); // Save every time they click an option
+        }
+
+// Update your jumpTo / switchSubject / next / prev to trigger a save
+        function jumpTo(idx) { currentIndex = idx; loadQuestion(); persistState(); }
+        function switchSubject(sub) { currentSubject = sub; currentIndex = 0; buildTabs(); loadQuestion(); persistState(); }
     </script>
 </body>
 </html>
