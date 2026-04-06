@@ -343,27 +343,40 @@ let userSubjects = ['Use of English'];
 
         function confirmSubmit() { if(confirm("Submit exam?")) submitExam(); }
 
-        function submitExam() {
+       function submitExam() {
             clearInterval(timerInterval);
+            let subjectBreakdown = {}; // To store scores like { "English": 50, "Math": 35 }
             let totalScore = 0;
             const reg = regInput.value.trim().toUpperCase();
             const fullName = nameInput.value.trim();
             
             userSubjects.forEach(sub => {
+                let subScore = 0;
                 answers[sub].forEach((ans, idx) => {
-                    if(sessionExam[sub] && sessionExam[sub][idx] && ans === sessionExam[sub][idx].answer) totalScore++;
+                    if(sessionExam[sub] && sessionExam[sub][idx] && ans === sessionExam[sub][idx].answer) {
+                        subScore++;
+                    }
                 });
+                
+                // Weighting the score to 100 per subject (Standard JAMB style)
+                let totalQs = sessionExam[sub].length;
+                let weightedScore = Math.round((subScore / totalQs) * 100);
+                
+                subjectBreakdown[sub] = weightedScore;
+                totalScore += weightedScore; // Aggregate total out of 400
             });
 
             localStorage.setItem('jamb_exam_done_' + reg, true);
             document.getElementById("exam-screen").style.display = "none";
             document.getElementById("result-screen").style.display = "block";
 
+            // We are now sending a much richer payload for your Result Checker
             let payload = {
                 regNum: reg,
                 fullName: fullName,
                 subjects: userSubjects.join(", "),
-                score: totalScore
+                breakdown: JSON.stringify(subjectBreakdown), // Detailed scores
+                totalScore: totalScore // Total out of 400
             };
 
             fetch(GOOGLE_APP_URL, {
