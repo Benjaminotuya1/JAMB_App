@@ -90,21 +90,22 @@
                 <label><input type="checkbox" value="Commerce" class="sub-checkbox"> Commerce</label>
                 <label><input type="checkbox" value="Principles of Accounts" class="sub-checkbox"> Principles of Accounts</label>
                 <label><input type="checkbox" value="Agricultural Science" class="sub-checkbox"> Agricultural Science</label>
+                <label><input type="checkbox" value="Biology" class="sub-checkbox"> Biology</label>
                 <label><input type="checkbox" value="Christian Religious Studies" class="sub-checkbox"> Christian Religious Studies (CRS)</label>
                 <label><input type="checkbox" value="Islamic Studies" class="sub-checkbox"> Islamic Studies</label>
-                <label><input type="checkbox" value="Art (Fine Art)" class="sub-checkbox"> Art (Fine Art)</label>
+                <label><input type="checkbox" value="Fine Art" class="sub-checkbox"> Fine Art</label>
                 <label><input type="checkbox" value="Music" class="sub-checkbox"> Music</label>
                 <label><input type="checkbox" value="Computer Studies" class="sub-checkbox"> Computer Studies</label>
-                <label><input type="checkbox" value="Home Economics" class="sub-checkbox"> Home Economics</label>
-                <label><input type="checkbox" value="Physical & Health Education" class="sub-checkbox"> Physical & Health Education (PHE)</label>
                 
-                <div class="subject-group">Languages</div>
-                <label><input type="checkbox" value="Arabic" class="sub-checkbox"> Arabic</label>
-                <label><input type="checkbox" value="French" class="sub-checkbox"> French</label>
-                <label><input type="checkbox" value="Hausa" class="sub-checkbox"> Hausa</label>
-                <label><input type="checkbox" value="Igbo" class="sub-checkbox"> Igbo</label>
-                <label><input type="checkbox" value="Yoruba" class="sub-checkbox"> Yoruba</label>
-                <label><input type="checkbox" value="Biology" class="sub-checkbox"> Biology</label>
+                <!-- Disabled for now until added to questions.js -->
+                <!-- <label><input type="checkbox" value="Home Economics" class="sub-checkbox"> Home Economics</label> -->
+                <!-- <label><input type="checkbox" value="Physical & Health Education" class="sub-checkbox"> Physical & Health Education (PHE)</label> -->
+                <!-- <div class="subject-group">Languages</div> -->
+                <!-- <label><input type="checkbox" value="Arabic" class="sub-checkbox"> Arabic</label> -->
+                <!-- <label><input type="checkbox" value="French" class="sub-checkbox"> French</label> -->
+                <!-- <label><input type="checkbox" value="Hausa" class="sub-checkbox"> Hausa</label> -->
+                <!-- <label><input type="checkbox" value="Igbo" class="sub-checkbox"> Igbo</label> -->
+                <!-- <label><input type="checkbox" value="Yoruba" class="sub-checkbox"> Yoruba</label> -->
                 
                 </div>
             
@@ -160,6 +161,57 @@
     </div>
     <script src="questions.js"></script>
     <script>
+      // --- NEW: Check for existing session on page load ---
+window.onload = function() {
+    const savedSession = localStorage.getItem('jamb_current_session');
+    if (savedSession) {
+        const state = JSON.parse(savedSession);
+        
+        // Restore variables
+        nameInput.value = state.fullName;
+        regInput.value = state.regNum;
+        userSubjects = state.userSubjects;
+        currentSubject = state.currentSubject;
+        currentIndex = state.currentIndex;
+        answers = state.answers;
+        sessionExam = state.sessionExam;
+        timeLeft = state.timeLeft;
+
+        // Jump straight into the exam
+        document.getElementById('setup-screen').style.display = 'none';
+        document.getElementById('exam-screen').style.display = 'block';
+        document.getElementById('display-name').innerText = `${state.fullName} (${state.regNum})`;
+
+        buildTabs();
+        loadQuestion();
+        startTimer(); // We need to move the timer logic into its own function
+    }
+};
+
+function startTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+        if (timeLeft <= 0) {
+            submitExam();
+            return;
+        }
+        timeLeft--;
+        
+        // Save time every 5 seconds to avoid slowing down the browser
+        if (timeLeft % 5 === 0) persistState();
+
+        let h = Math.floor(timeLeft / 3600);
+        let m = Math.floor((timeLeft % 3600) / 60);
+        let s = timeLeft % 60;
+        document.getElementById("time").innerText = h > 0 ? 
+            `${h}:${m < 10 ? '0':''}${m}:${s < 10 ? '0':''}${s}` : 
+            `${m}:${s < 10 ? '0':''}${s}`;
+    }, 1000);
+}  
+
+
+
+        
        // --- SECURE STUDENT WHITELIST (JAMB001 to JAMB200) ---
         const validUsers = {
             "JAMB001": "8249", "JAMB002": "1938", "JAMB003": "5721", "JAMB004": "3046", "JAMB005": "9182",
@@ -297,14 +349,8 @@ let userSubjects = ['Use of English'];
             buildTabs();
             loadQuestion();
 
-            timerInterval = setInterval(() => {
-                if (timeLeft <= 0) submitExam();
-                timeLeft--;
-                let h = Math.floor(timeLeft / 3600);
-                let m = Math.floor((timeLeft % 3600) / 60);
-                let s = timeLeft % 60;
-                document.getElementById("time").innerText = h > 0 ? `${h}:${m < 10 ? '0':''}${m}:${s < 10 ? '0':''}${s}` : `${m}:${s < 10 ? '0':''}${s}`;
-            }, 1000);
+            startTimer();
+            persistState();
         }
 
         function buildTabs() {
@@ -316,7 +362,7 @@ let userSubjects = ['Use of English'];
             document.getElementById("subject-tabs").innerHTML = tabsHtml;
         }
 
-        function switchSubject(sub) { currentSubject = sub; currentIndex = 0; buildTabs(); loadQuestion(); }
+        function switchSubject(sub) { currentSubject = sub; currentIndex = 0; buildTabs(); loadQuestion(); persistState(); }
 
         function loadQuestion() {
             const qData = sessionExam[currentSubject] ? sessionExam[currentSubject][currentIndex] : null;
@@ -338,7 +384,7 @@ let userSubjects = ['Use of English'];
             renderGrid();
         }
 
-        function saveAnswer(idx) { answers[currentSubject][currentIndex] = idx; renderGrid(); }
+        function saveAnswer(idx) { answers[currentSubject][currentIndex] = idx; renderGrid(); persistState(); }
 
         function renderGrid() {
             let gridHtml = "";
@@ -351,9 +397,9 @@ let userSubjects = ['Use of English'];
             document.getElementById("q-grid").innerHTML = gridHtml;
         }
 
-        function jumpTo(idx) { currentIndex = idx; loadQuestion(); }
-        function nextQuestion() { if (currentIndex < sessionExam[currentSubject].length - 1) { currentIndex++; loadQuestion(); } }
-        function prevQuestion() { if (currentIndex > 0) { currentIndex--; loadQuestion(); } }
+        function jumpTo(idx) { currentIndex = idx; loadQuestion(); persistState(); }
+        function nextQuestion() { if (currentIndex < sessionExam[currentSubject].length - 1) { currentIndex++; loadQuestion(); persistState(); } }
+        function prevQuestion() { if (currentIndex > 0) { currentIndex--; loadQuestion(); persistState(); } }
 
         function confirmSubmit() { if(confirm("Submit exam?")) submitExam(); }
 
@@ -378,7 +424,7 @@ let userSubjects = ['Use of English'];
                 });
                 
                 // Weight it to 100 points (JAMB standard)
-                let weightedScore = Math.round((subScore / totalQs) * 100);
+                let weightedScore = totalQs > 0 ? Math.round((subScore / totalQs) * 100) : 0;
                 
                 subjectBreakdown[sub] = weightedScore;
                 totalScore += weightedScore;
@@ -397,6 +443,7 @@ let userSubjects = ['Use of English'];
 
             // Save status and switch screens
             localStorage.setItem('jamb_exam_done_' + reg, true);
+            localStorage.removeItem('jamb_current_session');
             document.getElementById("exam-screen").style.display = "none";
             document.getElementById("result-screen").style.display = "block";
 
@@ -435,17 +482,6 @@ let userSubjects = ['Use of English'];
             };
             localStorage.setItem('jamb_current_session', JSON.stringify(state));
         }
-
-// Update your saveAnswer to trigger a save
-        function saveAnswer(idx) { 
-            answers[currentSubject][currentIndex] = idx; 
-            renderGrid(); 
-            persistState(); // Save every time they click an option
-        }
-
-// Update your jumpTo / switchSubject / next / prev to trigger a save
-        function jumpTo(idx) { currentIndex = idx; loadQuestion(); persistState(); }
-        function switchSubject(sub) { currentSubject = sub; currentIndex = 0; buildTabs(); loadQuestion(); persistState(); }
     </script>
 </body>
 </html>
