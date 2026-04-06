@@ -20,6 +20,7 @@
         .scale-group { display: flex; justify-content: space-between; background: #f8f9fa; padding: 10px; border-radius: 4px; border: 1px solid #ddd; }
         .scale-item { text-align: center; }
         .scale-item label { display: block; font-size: 12px; margin-top: 5px; }
+        .error-highlight { border: 2px solid #e74c3c; background-color: #fceceb; padding: 15px; border-radius: 5px; transition: 0.3s; }
         .btn-submit { width: 100%; padding: 15px; background-color: #27ae60; color: white; border: none; border-radius: 4px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 30px; }
         .btn-submit:hover { background-color: #219150; }
         #status-msg { text-align: center; margin-top: 15px; font-weight: bold; color: #27ae60; }
@@ -33,7 +34,7 @@
         <p><strong>Instruction to Students:</strong> This survey is strictly for research purposes to understand how sleep and stress affect your preparation for the upcoming JAMB examination. It is completely anonymous. Please answer honestly. There are no right or wrong answers.</p>
     </div>
 
-    <form id="research-form">
+    <form id="research-form" novalidate>
         <div class="section-title">SECTION 1: Demographics & Study Habits</div>
         
         <div class="question">
@@ -75,6 +76,8 @@
         <p style="font-size: 13px; color: #555;"><strong>Instruction:</strong> Please read each statement carefully and rate how true it is for you. <br>
         1 = Not at all or never true | 2 = Slightly true | 3 = Moderately true | 4 = Highly true | 5 = Extremely or always true</p>
 
+        <div id="anxiety-questions-container"></div>
+
         <script>
             const anxietyQuestions = [
                 "The closer I am to a major exam, the harder it is for me to concentrate on the study material.",
@@ -89,8 +92,9 @@
                 "After an exam, I worry excessively about whether I did well enough."
             ];
 
+            let questionsHtml = "";
             anxietyQuestions.forEach((q, index) => {
-                document.write(`
+                questionsHtml += `
                     <div class="question">
                         <p>${index + 5}. ${q}</p>
                         <div class="scale-group">
@@ -101,8 +105,9 @@
                             <div class="scale-item"><input type="radio" name="anx_${index}" value="5"><label>5</label></div>
                         </div>
                     </div>
-                `);
+                `;
             });
+            document.getElementById('anxiety-questions-container').innerHTML = questionsHtml;
         </script>
 
         <div class="section-title">SECTION 3: Sleep Quality (Adapted from the PSQI)</div>
@@ -160,8 +165,51 @@
     document.getElementById('research-form').addEventListener('submit', function(e) {
         e.preventDefault();
         
+        // --- NEW: Custom Smart Validation ---
+        let isValid = true;
+        let firstInvalid = null;
+        
+        // Clear previous error highlights
+        document.querySelectorAll('.question').forEach(q => q.classList.remove('error-highlight'));
+
+        function flagError(inputElement) {
+            isValid = false;
+            let questionContainer = inputElement.closest('.question');
+            if (questionContainer) {
+                questionContainer.classList.add('error-highlight');
+                if (!firstInvalid) firstInvalid = questionContainer;
+            }
+        }
+
+        // Check text, number, and time inputs
+        ['studentId', 'bedTime', 'fallAsleepMins', 'wakeTime', 'sleepHours'].forEach(id => {
+            let el = document.getElementById(id);
+            if (!el.value.trim()) flagError(el);
+        });
+
+        // Check all radio groups (including the dynamically generated anxiety questions)
+        let radioGroups = ['gender', 'age', 'studyHours', 'sleepQuality', 'troubleAwake'];
+        for (let i = 0; i < 10; i++) radioGroups.push(`anx_${i}`);
+
+        radioGroups.forEach(name => {
+            if (!document.querySelector(`input[name="${name}"]:checked`)) {
+                let firstRadio = document.querySelector(`input[name="${name}"]`);
+                if (firstRadio) flagError(firstRadio);
+            }
+        });
+
         const btn = document.getElementById('submit-btn');
         const status = document.getElementById('status-msg');
+
+        // If any question is missed, stop submission and scroll to it
+        if (!isValid) {
+            status.innerText = "Please answer all highlighted questions before submitting.";
+            status.style.color = "red";
+            if (firstInvalid) firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+        // --- END OF VALIDATION ---
+
         btn.disabled = true;
         btn.innerText = "CALCULATING & SUBMITTING...";
 
@@ -180,7 +228,10 @@
         // Calculate Anxiety Score
         let anxietySum = 0;
         for(let i = 0; i < 10; i++) {
-            anxietySum += parseInt(document.querySelector(`input[name="anx_${i}"]:checked`).value);
+            let checkedOption = document.querySelector(`input[name="anx_${i}"]:checked`);
+            if (checkedOption) {
+                anxietySum += parseInt(checkedOption.value);
+            }
         }
         let anxietyScore = (anxietySum / 10).toFixed(1);
         
